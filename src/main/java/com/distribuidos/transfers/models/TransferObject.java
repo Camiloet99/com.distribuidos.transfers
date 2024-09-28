@@ -1,19 +1,21 @@
 package com.distribuidos.transfers.models;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.*;
 
 import java.util.List;
 import java.util.Map;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
+@Value
+@Builder(toBuilder = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class TransferObject {
 
-    private Integer id;
-    private String citizenName;
-    private String citizenEmail;
-    private List<Map<String, List<String>>> documents;
+    Integer id;
+    String citizenName;
+    String citizenEmail;
+    List<Map<String, List<String>>> documents;
+
 }

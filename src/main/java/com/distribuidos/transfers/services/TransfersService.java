@@ -66,11 +66,12 @@ public class TransfersService {
     }
 
     private TransferObject mapToTransferObject(Map<String, Object> transferData) {
-        return new TransferObject(
-                (Integer) transferData.get("id"),
-                (String) transferData.get("citizenName"),
-                (String) transferData.get("citizenEmail"),
-                (List<Map<String, List<String>>>) transferData.get("documents")
-        );
+        return TransferObject.builder()
+                .citizenEmail((String) transferData.get("citizenEmail"))
+                .id((Integer) transferData.get(("id")))
+                .citizenName((String) transferData.get("citizenName"))
+                .citizenName((String) transferData.get("citizenName"))
+                .documents((List<Map<String, List<String>>>) transferData.get("documents"))
+                .build();
     }
 }

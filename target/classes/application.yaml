@@ -1,0 +1,42 @@
+# Spring
+server:
+  port: 8080
+  forward-headers-strategy: framework
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024
+spring:
+  main:
+    banner-mode: console
+    lazy-initialization: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_GROUP_ID:distribuidos-group}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring:
+          json:
+            trusted:
+              packages: "*"
+      auto-offset-reset: earliest
+    topic:
+      name: ${KAFKA_TOPIC_NAME:transfers-topic}
+---
+# ENVIRONMENT
+environment:
+  security-disable-ssl-cert-validation: ${DISABLE_SSL_CERT_VALIDATION:true}
+  domains:
+    documents-domain: ${DOCUMENTS_DOMAIN:/documents/}
+    authentication-domain: ${AUTHENTICATION_DOMAIN:/authentication/}
+  service-retry:
+    max-attempts: ${SERVICE_RETRY_MAX_ATTEMPTS:2}
+  service-name: distribuidos/transfers
+  max-payload-size-in-mb: ${MAX_PAYLOAD_SIZE_IN_MB:10}
+---
+# Logging
+logging:
+  level:
+    root: info
