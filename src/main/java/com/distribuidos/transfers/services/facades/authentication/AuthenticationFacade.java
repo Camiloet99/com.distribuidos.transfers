@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 import static com.distribuidos.transfers.exceptions.ErrorCodes.AUTHENTICATION_UPSTREAM_ERROR;
 import static reactor.core.publisher.Mono.error;
@@ -43,7 +44,7 @@ public class AuthenticationFacade {
                 .bodyValue(userRequest)
                 .exchangeToMono(authResponse -> {
                     HttpStatus httpStatus = HttpStatus.valueOf(authResponse.statusCode().value());
-                    if (HttpStatus.OK.equals(httpStatus)) {
+                    if (HttpStatus.OK.equals(httpStatus) || HttpStatus.CREATED.equals(httpStatus)) {
                         return authResponse.bodyToMono(RESPONSE_TYPE_REGISTER)
                                 .map(ResponseBody::getResult);
                     }
@@ -57,6 +58,11 @@ public class AuthenticationFacade {
                                         responseBody);
                                 return error(new AuthenticationException(responseBody));
                             });
-                });
+                })
+                .retryWhen(Retry
+                        .max(environmentConfig.getServiceRetry().getMaxAttempts())
+                        .filter(AuthenticationException.class::isInstance)
+                        .onRetryExhaustedThrow((ignore1, ignore2) -> ignore2.failure()));
+
     }
 }

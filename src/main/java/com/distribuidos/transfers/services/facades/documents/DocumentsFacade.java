@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 import java.util.List;
 
@@ -35,7 +36,7 @@ public class DocumentsFacade {
 
     public Mono<List<String>> pushExternalUserDocuments(List<MultipartFile> files, String userId) {
         String resourceUri = environmentConfig.getDomains().getDocumentsDomain()
-                + String.format("/upload/all/%s}", userId);
+                + String.format("/upload/all/%s", userId);
 
         MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
         for (MultipartFile file : files) {
@@ -56,14 +57,18 @@ public class DocumentsFacade {
                     HttpHeaders responseHeaders = documentsResponse.headers().asHttpHeaders();
                     return documentsResponse.bodyToMono(String.class)
                             .flatMap(responseBody -> {
-                                log.error("{} - The centralizer service responded with "
+                                log.error("{} - The documents service responded with "
                                                 + "an unexpected failure response for: {}"
                                                 + "\nStatus Code: {}\nResponse Headers: {}\nResponse Body: {}",
                                         DOCUMENTS_UPSTREAM_ERROR, resourceUri, httpStatus, responseHeaders,
                                         responseBody);
                                 return error(new DocumentsPushError(responseBody));
                             });
+                })
+                .retryWhen(Retry
+                        .max(environmentConfig.getServiceRetry().getMaxAttempts())
+                        .filter(DocumentsPushError.class::isInstance)
+                        .onRetryExhaustedThrow((ignore1, ignore2) -> ignore2.failure()));
 
-                });
     }
 }

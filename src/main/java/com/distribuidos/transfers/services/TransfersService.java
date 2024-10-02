@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static reactor.core.publisher.Mono.just;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -29,37 +31,48 @@ public class TransfersService {
         TransferObject transferObject = mapToTransferObject(transferData);
 
         authenticationFacade.registerExternalUser(transferObject.getCitizenName(), transferObject.getCitizenEmail())
-                .then(downloadDocuments(transferObject.getDocuments()).collectList())
+                .then(downloadDocuments(transferObject.getDocuments().getDocumentMap()).collectList())
                 .flatMap(files -> documentsFacade
                         .pushExternalUserDocuments(files, String.valueOf(transferObject.getId())))
                 .doOnSuccess(uploadedLinks ->
-                        log.info("Success! User ID: " + transferObject.getId() + " - Document links: " + uploadedLinks))
+                        callConfirmationUri(transferObject.getConfirmationURL())
+                                .flatMap(response -> {
+                                    log.info("Success! User ID: " + transferObject.getId()
+                                            + " - Document links: " + uploadedLinks);
+                                    return just(true);
+                                }))
                 .doOnError(throwable ->
                         log.error("Error pushing user " + transferObject.getId() + " data, cause: "
                                 + throwable.getMessage(), throwable))
+                .then()
                 .subscribe();
     }
 
-    private Flux<MultipartFile> downloadDocuments(List<Map<String, List<String>>> documents) {
+    private Mono<Boolean> callConfirmationUri(String confirmationUri) {
+        return webClient
+                .post()
+                .uri(confirmationUri)
+                .exchangeToMono(confirmationResponse -> just(true));
+    }
+
+    private Flux<MultipartFile> downloadDocuments(Map<String, List<String>> documents) {
         List<Mono<MultipartFile>> fileMonos = new ArrayList<>();
-        for (Map<String, List<String>> documentMap : documents) {
-            for (Map.Entry<String, List<String>> entry : documentMap.entrySet()) {
-                String documentName = entry.getKey();
-                List<String> links = entry.getValue();
+        for (Map.Entry<String, List<String>> entry : documents.entrySet()) {
+            String documentName = entry.getKey();
+            List<String> links = entry.getValue();
 
-                if (!links.isEmpty()) {
-                    String downloadLink = links.get(0);
-                    // Crear un Mono que descargue el archivo y lo convierta en MultipartFile
-                    Mono<MultipartFile> fileMono = webClient
-                            .get()
-                            .uri(downloadLink)
-                            .retrieve()
-                            .bodyToMono(byte[].class) // Obtener el cuerpo de la respuesta como un array de bytes
-                            .map(fileContent -> new CustomMultipartFile(documentName, documentName,
-                                    "application/octet-stream", fileContent));
+            if (!links.isEmpty()) {
+                String downloadLink = links.get(0);
 
-                    fileMonos.add(fileMono);
-                }
+                Mono<MultipartFile> fileMono = webClient
+                        .get()
+                        .uri(downloadLink)
+                        .retrieve()
+                        .bodyToMono(byte[].class)
+                        .map(fileContent -> new CustomMultipartFile(documentName, documentName,
+                                "application/octet-stream", fileContent));
+
+                fileMonos.add(fileMono);
             }
         }
         return Flux.concat(fileMonos);
@@ -71,7 +84,8 @@ public class TransfersService {
                 .id((Integer) transferData.get(("id")))
                 .citizenName((String) transferData.get("citizenName"))
                 .citizenName((String) transferData.get("citizenName"))
-                .documents((List<Map<String, List<String>>>) transferData.get("documents"))
+                .documents((TransferObject.Documents) transferData.get("documents"))
+                .confirmationURL((String) transferData.get("confirmationURL"))
                 .build();
     }
 }
